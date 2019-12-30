@@ -17,8 +17,11 @@ Chart.defaults._set('radialGauge', {
   // The percentage of the chart that is the center area
   centerPercentage: 80,
 
-  // The rotation for the start of the metric's arc
-  rotation: -Math.PI / 2,
+  // Starting angle to draw arcs from
+  rotation: Math.PI,
+
+  // Sweep to allow arcs to cover
+  circumference: Math.PI,
 
   // the color of the radial gauge's track
   trackColor: 'rgb(204, 221, 238)',
@@ -88,21 +91,26 @@ export default Chart => {
 
       this.drawCenterArea();
 
+      this.drawScale(this.chart.options);
+
       Chart.DatasetController.prototype.draw.apply(this, args);
     },
 
     drawTrack() {
-      new Chart.elements.Arc({
+      const opts = this.chart.options;
+
+      new Chart.elements.RoundedArc({
         _view: {
           backgroundColor: this.chart.options.trackColor,
           borderColor: this.chart.options.trackColor,
-          startAngle: 0,
-          endAngle: Math.PI * 2,
+          startAngle: opts.rotation,
+          endAngle: opts.rotation + opts.circumference,
           x: this.centerX,
           y: this.centerY,
           innerRadius: this.innerRadius,
           outerRadius: this.outerRadius,
-          borderWidth: this.borderWidth
+          borderWidth: this.borderWidth,
+          roundedCorners: opts.roundedCorners
         },
         _chart: this.chart
       }).draw();
@@ -112,7 +120,7 @@ export default Chart => {
       const ctx = this.chart.ctx;
       const drawInfo = {
         ctx,
-        value: Math.ceil(this.getMeta().data[0]._view.value),
+        value: this.getMeta().data.map(val => Math.ceil(val._view.value)),
         radius: this.innerRadius,
         options: this.chart.options.centerArea
       };
@@ -167,10 +175,12 @@ export default Chart => {
     },
 
     drawCenterText({ options, value }) {
-      let fontSize = options.fontSize || `${(this.innerRadius / 50).toFixed(2)}em`;
+      let fontSize = options.fontSize || `${(this.innerRadius / 100).toFixed(2)}em`; // ToDo: Fontsize as a function of inner or outer radius in config.
       if (typeof fontSize === 'number') {
         fontSize = `${fontSize}px`;
       }
+
+      console.log(fontSize);
 
       const fontFamily = options.fontFamily || Chart.defaults.global.defaultFontFamily;
       const color = options.fontColor || Chart.defaults.global.defaultFontColor;
@@ -183,13 +193,61 @@ export default Chart => {
       const textWidth = this.chart.ctx.measureText(text).width;
       const textX = Math.round(-textWidth / 2);
 
+      // ToDo: Multiline text on canvas: https://www.tutorialspoint.com/HTML5-canvas-ctx-fillText-won-t-do-line-breaks
+
       // only display the text if it fits
       if (textWidth < 2 * this.innerRadius * 0.8) {
         this.chart.ctx.fillText(text, textX, 0);
       }
     },
 
+    drawScale(options) {
+      ctx.save();
+
+      try {
+        ctx.translate(this.centerX, this.centerY);
+
+        let fontSize = options.fontSize || `${(this.innerRadius / 200).toFixed(2)}em`; // ToDo: Fontsize as a function of inner or outer radius in config.
+        if (typeof fontSize === 'number') {
+          fontSize = `${fontSize}px`;
+        }
+        console.log(fontSize);
+
+        const fontFamily = options.fontFamily || Chart.defaults.global.defaultFontFamily;
+        const color = options.fontColor || Chart.defaults.global.defaultFontColor;
+        this.chart.ctx.font = `${fontSize} ${fontFamily}`;
+        this.chart.ctx.fillStyle = color;
+        this.chart.ctx.textBaseline = 'middle';
+        this.chart.ctx.textAlign = "center";
+
+        // ToDo: Consider start and end angle (rotation and circumference)
+        // ToDo: Cache rotation values (rotate unit vector and multiply)
+
+        const offset = 10;
+        for (let i = 0; i < 5; i++) {
+          const text = '' + i;
+          const textWidth = this.chart.ctx.measureText(text).width;
+          const angleRad = Math.PI * i / 4;
+          const { x, y } = this.rotateVector(-this.outerRadius - offset - textWidth / 2, 0, angleRad);
+          this.chart.ctx.fillText(text, x, y);
+        }
+      } finally {
+        ctx.restore();
+      }
+    },
+
+    rotateVector(x, y, angleRad) {
+      const cos = Math.cos(angleRad);
+      const sin = Math.sin(angleRad);
+      return {
+        x: x * cos - y * sin,
+        y: x * sin + y * cos
+      };
+    },
+
     update(reset) {
+      // Todo: Better use space: https://stackoverflow.com/questions/32365479/formula-to-calculate-bounding-coordinates-of-an-arc-in-space
+
       const chart = this.chart;
       const chartArea = chart.chartArea;
       const opts = chart.options;
@@ -208,7 +266,7 @@ export default Chart => {
         0
       );
 
-      meta.total = this.getMetricValue();
+      meta.total = this.calculateTotal();
       this.centerX = (chartArea.left + chartArea.right) / 2;
       this.centerY = (chartArea.top + chartArea.bottom) / 2;
 
@@ -224,12 +282,13 @@ export default Chart => {
       const animationOpts = opts.animation;
       const centerX = (chartArea.left + chartArea.right) / 2;
       const centerY = (chartArea.top + chartArea.bottom) / 2;
-      const startAngle = opts.rotation; // non reset case handled later
       const dataset = this.getDataset();
-      const arcAngle =
-        reset && animationOpts.animateRotate ? 0 : this.calculateArcAngle(dataset.data[index]);
-      const value = reset && animationOpts.animateScale ? 0 : this.getMetricValue();
+
+      const startAngle = opts.rotation;
+      const value = reset && animationOpts.animateScale ? 0 : dataset.data[index]; 
+      const arcAngle = reset && animationOpts.animateRotate ? 0 : this.calculateArcAngle(value);
       const endAngle = startAngle + arcAngle;
+
       const innerRadius = this.innerRadius;
       const outerRadius = this.outerRadius;
       const valueAtIndexOrDefault = helpers.valueAtIndexOrDefault;
@@ -272,25 +331,20 @@ export default Chart => {
       arc.pivot();
     },
 
-    getMetricValue() {
-      let value = this.getDataset().data[0];
-      if (value == null) {
-        value = this.chart.options.domain[0];
-      }
-
-      return value;
+    calculateTotal() {
+      return Math.max(...this.getDataset().data);
     },
 
     getDomain() {
       return this.chart.options.domain;
     },
 
-    calculateArcAngle() {
+    calculateArcAngle(value) {
       const [domainStart, domainEnd] = this.getDomain();
-      const value = this.getMetricValue();
       const domainSize = domainEnd - domainStart;
+      const circumference = this.chart.options.circumference;
 
-      return domainSize > 0 ? Math.PI * 2.0 * (Math.abs(value - domainStart) / domainSize) : 0;
+      return domainSize > 0 ? circumference * (Math.abs(value - domainStart) / domainSize) : 0;
     },
 
     // gets the max border or hover width to properly scale pie charts

@@ -1,71 +1,89 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Radial Gauge Chart</title>
-    <script src="../node_modules/chart.js/dist/Chart.bundle.js"></script>
-    <script src="../build/Chart.RadialGauge.umd.js"></script>
-    <script src="./utils.js"></script>
-    <style>
-      canvas {
-        -moz-user-select: none;
-        -webkit-user-select: none;
-        -ms-user-select: none;
-      }
-    </style>
-  </head>
+<head>
+  <title>Radial Gauge Chart</title>
+  <script src="../node_modules/chart.js/dist/Chart.bundle.js"></script>
+  <script src="../build/Chart.RadialGauge.umd.js"></script>
+  <script src="./utils.js"></script>
+  <style>
 
-  <body>
-    <div id="canvas-holder" style="width:100%"><canvas id="chart-area"></canvas></div>
-    <button id="randomizeData">Randomize Data</button>
-    <script>
-      var randomScalingFactor = function() {
-        return Math.round(Math.random() * 100);
-      };
-      Chart.defaults.global.defaultFontFamily = 'Verdana';
+    canvas {
+      -moz-user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+    }
+  </style>
+</head>
 
-      var ctx = document.getElementById('chart-area').getContext('2d');
-      var gradientStroke = ctx.createLinearGradient(500, 0, 100, 0);
-      gradientStroke.addColorStop(0, '#80b6f4');
-      gradientStroke.addColorStop(1, '#f49080');
+<body>
+  <div id="canvas-holder" style="width:100%"><canvas id="chart-area"></canvas></div>
+  <button id="randomizeData">Randomize Data</button>
+  <script>
+    var randomScalingFactor = function () {
+      return Math.round(Math.random() * 800);
+    };
+    Chart.defaults.global.defaultFontFamily = 'Verdana';
 
-      var config = {
-        type: 'radialGauge',
-        data: {
-          labels: ['Metrics'],
-          datasets: [
-            {
-              data: [randomScalingFactor()],
-              backgroundColor: [gradientStroke],
-              borderWidth: 0,
-              label: 'Score'
-            }
-          ]
+    var ctx = document.getElementById('chart-area').getContext('2d');
+
+    var config = {
+      type: 'radialGauge',
+      data: {
+        labels: ['M1', 'M2'],
+        datasets: [
+          //{
+          //  data: [randomScalingFactor()],
+          //  backgroundColor: [gradientStroke],
+          //  borderWidth: 0,
+          //  label: 'Score'
+          //},
+          {
+            data: [600, 500, 400],
+            backgroundColor: ['#00ff00', '#ff0000', '#0000ff'],
+            borderWidth: 0,
+            label: 'Score'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        legend: {},
+        title: {
+          display: false,
+          text: 'Radial gauge chart'
         },
-        options: {
-          responsive: true,
-          legend: {},
-          title: {
-            display: true,
-            text: 'Radial gauge chart'
+        centerPercentage: 80,
+
+        centerArea: {
+          //fontSize: '1em',
+          text: function (v, o) {
+            return v.join(' ');
           },
-          centerPercentage: 80
-        }
-      };
+        },
+        roundedCorners: false,
+        domain: [0, 1000],
+        rotation: Math.PI, // Standard
+        circumference: Math.PI, // Standard
+      }
+    };
 
-      window.onload = function() {
-        var ctx = document.getElementById('chart-area').getContext('2d');
-        window.myRadialGauge = new Chart(ctx, config);
-      };
+    window.onload = function () {
+      var ctx = document.getElementById('chart-area').getContext('2d');
+      window.myRadialGauge = new Chart(ctx, config);
+    };
 
-      document.getElementById('randomizeData').addEventListener('click', function() {
-        config.data.datasets.forEach(function(dataset) {
-          dataset.data = dataset.data.map(function() {
-            return randomScalingFactor();
-          });
-        });
+    document.getElementById('randomizeData').addEventListener('click', function () {
+      config.data.datasets.forEach(function (dataset) {
+        //dataset.data = dataset.data.map(function() {
+        //  return randomScalingFactor();
+        //});
 
-        window.myRadialGauge.update();
+        var val = randomScalingFactor();
+        dataset.data = [val + 200, val + 100, val];
       });
-    </script>
-  </body>
+
+      window.myRadialGauge.update();
+    });
+  </script>
+</body>
 </html>
