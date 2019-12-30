@@ -23,11 +23,17 @@ Chart.defaults._set('radialGauge', {
   // Sweep to allow arcs to cover
   circumference: Math.PI,
 
+  // Padding around the chart
+  padding: 0,
+
   // the color of the radial gauge's track
   trackColor: 'rgb(204, 221, 238)',
 
   // whether arc for the gauge should have rounded corners
   roundedCorners: true,
+
+  // if more than one datapoint, set the padding of each arc
+  arcPadding: (index, outerRadius, innerRadius) => 0,
 
   // center value options
   centerArea: {
@@ -51,9 +57,21 @@ Chart.defaults._set('radialGauge', {
     text: null
   },
 
+  // radial scale options
+  radialScale: {
+    // all ticket in range from 0 to 1 (percentage)
+    ticks: [0, 1],
+    // function to create label from value
+    label: v => v,
+    // label spacing
+    spacing: 10
+  },
+
   hover: {
     mode: 'single'
   },
+
+  events: [],
 
   legend: {
     display: false
@@ -63,6 +81,7 @@ Chart.defaults._set('radialGauge', {
   domain: [0, 100],
 
   tooltips: {
+    enabled: false,
     callbacks: {
       title() {
         return '';
@@ -180,7 +199,7 @@ export default Chart => {
         fontSize = `${fontSize}px`;
       }
 
-      console.log(fontSize);
+      //console.log(fontSize);
 
       const fontFamily = options.fontFamily || Chart.defaults.global.defaultFontFamily;
       const color = options.fontColor || Chart.defaults.global.defaultFontColor;
@@ -211,7 +230,7 @@ export default Chart => {
         if (typeof fontSize === 'number') {
           fontSize = `${fontSize}px`;
         }
-        console.log(fontSize);
+        //console.log(fontSize);
 
         const fontFamily = options.fontFamily || Chart.defaults.global.defaultFontFamily;
         const color = options.fontColor || Chart.defaults.global.defaultFontColor;
@@ -220,16 +239,18 @@ export default Chart => {
         this.chart.ctx.textBaseline = 'middle';
         this.chart.ctx.textAlign = "center";
 
-        // ToDo: Consider start and end angle (rotation and circumference)
         // ToDo: Cache rotation values (rotate unit vector and multiply)
-
-        const offset = 10;
-        for (let i = 0; i < 5; i++) {
-          const text = '' + i;
-          const textWidth = this.chart.ctx.measureText(text).width;
-          const angleRad = Math.PI * i / 4;
-          const { x, y } = this.rotateVector(-this.outerRadius - offset - textWidth / 2, 0, angleRad);
-          this.chart.ctx.fillText(text, x, y);
+        const opts = this.chart.options.radialScale;
+        const spacing = opts.spacing;
+        const domain = this.getDomain();
+        for (let tick of opts.ticks) {
+          const value = domain[0] + (domain[1] - domain[0]) * tick;
+          const text = opts.label(value);
+          const textSize = this.chart.ctx.measureText(text);
+          const angleRad = this.chart.options.rotation + Math.PI * tick;
+          const correction = this.rotateVector(textSize.width / 2, 0, angleRad);          
+          const { x, y } = this.rotateVector(this.outerRadius + spacing + textSize.width / 2, 0, angleRad);
+          this.chart.ctx.fillText(text, x, y - correction.y);
         }
       } finally {
         ctx.restore();
@@ -246,14 +267,14 @@ export default Chart => {
     },
 
     update(reset) {
-      // Todo: Better use space: https://stackoverflow.com/questions/32365479/formula-to-calculate-bounding-coordinates-of-an-arc-in-space
-
       const chart = this.chart;
       const chartArea = chart.chartArea;
       const opts = chart.options;
       const arcOpts = opts.elements.arc;
-      const availableWidth = chartArea.right - chartArea.left - arcOpts.borderWidth;
-      const availableHeight = chartArea.bottom - chartArea.top - arcOpts.borderWidth;
+
+      const padding = opts.padding;
+      const availableWidth = chartArea.right - chartArea.left - arcOpts.borderWidth - padding;
+      const availableHeight = chartArea.bottom - chartArea.top - arcOpts.borderWidth - padding;
       const availableSize = Math.min(availableWidth, availableHeight);
 
       const meta = this.getMeta();
@@ -266,22 +287,29 @@ export default Chart => {
         0
       );
 
+      const startAngle = opts.rotation;
+      const endAngle = opts.rotation + opts.circumference;
+      const bb = this.getArcBoundingBox(startAngle, endAngle, this.outerRadius, padding);
+      const factorXY = { x: 1 / Math.abs(bb.w / bb.x), y: 1 / Math.abs(bb.h / bb.y) };
+      const factor = Math.min(availableWidth / bb.w, availableHeight / bb.h);
+
+      this.outerRadius *= factor;
+      this.innerRadius *= factor;
+
       meta.total = this.calculateTotal();
-      this.centerX = (chartArea.left + chartArea.right) / 2;
-      this.centerY = (chartArea.top + chartArea.bottom) / 2;
+      this.centerX = (chartArea.left + chartArea.right) * factorXY.x;
+      this.centerY = (chartArea.top + chartArea.bottom) * factorXY.y;
 
       helpers.each(meta.data, (arc, index) => {
-        this.updateElement(arc, index, reset);
+        this.updateElement(arc, index, reset, this.centerX, this.centerY);
       });
     },
 
-    updateElement(arc, index, reset) {
+    updateElement(arc, index, reset, centerX, centerY) {
       const chart = this.chart;
       const chartArea = chart.chartArea;
       const opts = chart.options;
       const animationOpts = opts.animation;
-      const centerX = (chartArea.left + chartArea.right) / 2;
-      const centerY = (chartArea.top + chartArea.bottom) / 2;
       const dataset = this.getDataset();
 
       const startAngle = opts.rotation;
@@ -292,6 +320,9 @@ export default Chart => {
       const innerRadius = this.innerRadius;
       const outerRadius = this.outerRadius;
       const valueAtIndexOrDefault = helpers.valueAtIndexOrDefault;
+
+      const arcPadding = typeof opts.arcPadding === 'function' ?
+        opts.arcPadding(index, outerRadius, innerRadius) : opts.arcPadding;
 
       helpers.extend(arc, {
         // Utility
@@ -304,8 +335,8 @@ export default Chart => {
           y: centerY,
           startAngle,
           endAngle,
-          outerRadius,
-          innerRadius,
+          outerRadius: outerRadius - arcPadding,
+          innerRadius: innerRadius + arcPadding,
           label: valueAtIndexOrDefault(dataset.label, index, chart.data.labels[index]),
           roundedCorners: opts.roundedCorners,
           value
@@ -365,6 +396,53 @@ export default Chart => {
         max = hoverWidth > max ? hoverWidth : max;
       }
       return max;
+    },
+
+    getArcBoundingBox(ini, end, radius, margin = 0) {
+      // From: https://stackoverflow.com/questions/32365479/formula-to-calculate-bounding-coordinates-of-an-arc-in-space
+      const PI = Math.PI;
+      const HALF_PI = Math.PI / 2;
+      const TWO_PI = Math.PI * 2;
+
+      const getQuadrant = (_angle) => {
+        const angle = _angle % (TWO_PI);
+
+        if (angle > 0.0 && angle < HALF_PI) return 0;
+        if (angle >= HALF_PI && angle < PI) return 1;
+        if (angle >= PI && angle < PI + HALF_PI) return 2;
+        return 3;
+      };
+
+      const iniQuad = getQuadrant(ini);
+      const endQuad = getQuadrant(end);
+
+      const ix = Math.cos(ini) * radius;
+      const iy = Math.sin(ini) * radius;
+      const ex = Math.cos(end) * radius;
+      const ey = Math.sin(end) * radius;
+
+      const minX = Math.min(ix, ex);
+      const minY = Math.min(iy, ey);
+      const maxX = Math.max(ix, ex);
+      const maxY = Math.max(iy, ey);
+
+      const r = radius;
+      const xMax = [[maxX, r, r, r], [maxX, maxX, r, r], [maxX, maxX, maxX, r], [maxX, maxX, maxX, maxX]];
+      const yMax = [[maxY, maxY, maxY, maxY], [r, maxY, r, r], [r, maxY, maxY, r], [r, maxY, maxY, maxY]];
+      const xMin = [[minX, -r, minX, minX], [minX, minX, minX, minX], [-r, -r, minX, -r], [-r, -r, minX, minX]];
+      const yMin = [[minY, -r, -r, minY], [minY, minY, -r, minY], [minY, minY, minY, minY], [-r, -r, -r, minY]];
+
+      const x1 = xMin[endQuad][iniQuad];
+      const y1 = yMin[endQuad][iniQuad];
+      const x2 = xMax[endQuad][iniQuad];
+      const y2 = yMax[endQuad][iniQuad];
+
+      const x = x1 - margin;
+      const y = y1 - margin;
+      const w = x2 - x1 + margin * 2;
+      const h = y2 - y1 + margin * 2;
+
+      return { x, y, w, h };
     }
   });
 };
