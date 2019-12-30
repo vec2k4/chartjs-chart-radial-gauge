@@ -16,7 +16,7 @@
 </head>
 
 <body>
-  <div id="canvas-holder" style="width:100%"><canvas id="chart-area"></canvas></div>
+  <div style="position: relative; height: 250px; width: 100%;"><canvas id="chart-area"></canvas></div>
   <button id="randomizeData">Randomize Data</button>
   <script>
     var randomScalingFactor = function () {
@@ -41,13 +41,15 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         legend: {},
         title: {
           display: false,
           text: 'Radial gauge chart'
         },
         centerPercentage: 80,
-        padding: 45,
+        paddingX: 37,
+        paddingY: 0,
         arcPadding: function (index, outerRadius, innerRadius) {
           return (outerRadius - innerRadius) * index / 10
         },

@@ -23,8 +23,11 @@ Chart.defaults._set('radialGauge', {
   // Sweep to allow arcs to cover
   circumference: Math.PI,
 
-  // Padding around the chart
-  padding: 0,
+  // Padding around the chart (x-axis)
+  paddingX: 0,
+
+  // Padding around the chart (y-axis)
+  paddingY: 0,
 
   // the color of the radial gauge's track
   trackColor: 'rgb(204, 221, 238)',
@@ -314,9 +317,10 @@ export default Chart => {
       const opts = chart.options;
       const arcOpts = opts.elements.arc;
 
-      const padding = opts.padding;
-      const availableWidth = chartArea.right - chartArea.left - arcOpts.borderWidth - padding;
-      const availableHeight = chartArea.bottom - chartArea.top - arcOpts.borderWidth - padding;
+      const paddingX = opts.paddingX;
+      const paddingY = opts.paddingY;
+      const availableWidth = chartArea.right - chartArea.left - arcOpts.borderWidth - paddingX;
+      const availableHeight = chartArea.bottom - chartArea.top - arcOpts.borderWidth - paddingY;
       const availableSize = Math.min(availableWidth, availableHeight);
 
       const meta = this.getMeta();
@@ -331,7 +335,7 @@ export default Chart => {
 
       const startAngle = opts.rotation;
       const endAngle = opts.rotation + opts.circumference;
-      const bb = this.getArcBoundingBox(startAngle, endAngle, this.outerRadius, padding);
+      const bb = this.getArcBoundingBox(startAngle, endAngle, this.outerRadius, Math.max(paddingX, paddingY));
       const factorXY = { x: 1 / Math.abs(bb.w / bb.x), y: 1 / Math.abs(bb.h / bb.y) };
       const factor = Math.min(availableWidth / bb.w, availableHeight / bb.h);
 
