@@ -41,10 +41,12 @@ Chart.defaults._set('radialGauge', {
     displayText: true,
     // font for the center text
     fontFamily: null,
-    // color of the center text
+    // color of the center text, special value 'fontColor' for dataset values
     fontColor: null,
-    // the size of the center text
+    // the size of the center text, can be a function
     fontSize: null,
+    // the y-offset of the center text, can be a function
+    yOffset: 0,
     // padding around the center area
     padding: 4,
     // an image to use for the center background
@@ -59,10 +61,14 @@ Chart.defaults._set('radialGauge', {
 
   // radial scale options
   radialScale: {
+    // is enabled
+    enabled: true,
     // all ticket in range from 0 to 1 (percentage)
     ticks: [0, 1],
     // function to create label from value
     label: v => v,
+    // the size of the tick text, can be a function
+    fontSize : null,
     // label spacing
     spacing: 10
   },
@@ -71,6 +77,7 @@ Chart.defaults._set('radialGauge', {
     mode: 'single'
   },
 
+  // disable mouse events
   events: [],
 
   legend: {
@@ -110,7 +117,9 @@ export default Chart => {
 
       this.drawCenterArea();
 
-      this.drawScale(this.chart.options);
+      if (this.chart.options.radialScale.enabled) {
+        this.drawScale(this.chart.options);
+      }
 
       Chart.DatasetController.prototype.draw.apply(this, args);
     },
@@ -194,30 +203,58 @@ export default Chart => {
     },
 
     drawCenterText({ options, value }) {
-      let fontSize = options.fontSize || `${(this.innerRadius / 100).toFixed(2)}em`; // ToDo: Fontsize as a function of inner or outer radius in config.
-      if (typeof fontSize === 'number') {
-        fontSize = `${fontSize}px`;
-      }
+      value.forEach((v, i) => {
+        let fontSize = options.fontSize || `${(this.innerRadius / 100).toFixed(2)}em`;
+        if (typeof fontSize === 'number') {
+          fontSize = `${fontSize}px`;
+        } else if (typeof fontSize === 'function') {
+          fontSize = fontSize(this.innerRadius, i);
+          if (Array.isArray(fontSize)) {
+            fontSize = fontSize.map(fs => `${fs.toFixed(2)}px`);
+          } else {
+            fontSize = `${fontSize.toFixed(2)}px`;
+          }
+        }
 
-      //console.log(fontSize);
+        let yOffset = options.yOffset;
+        if (typeof yOffset == 'function') {
+          yOffset = `${yOffset(this.innerRadius, i)}`;
+        }
 
-      const fontFamily = options.fontFamily || Chart.defaults.global.defaultFontFamily;
-      const color = options.fontColor || Chart.defaults.global.defaultFontColor;
+        const fontFamily = options.fontFamily || Chart.defaults.global.defaultFontFamily;
+        let color = options.fontColor || Chart.defaults.global.defaultFontColor;
+        if (color === 'dataset') {
+          color = this.getDataset().backgroundColor[i];
+        }
 
-      let text = typeof options.text === 'function' ? options.text(value, options) : options.text;
-      text = text || `${value}`;
-      this.chart.ctx.font = `${fontSize} ${fontFamily}`;
-      this.chart.ctx.fillStyle = color;
-      this.chart.ctx.textBaseline = 'middle';
-      const textWidth = this.chart.ctx.measureText(text).width;
-      const textX = Math.round(-textWidth / 2);
+        let text = typeof options.text === 'function' ? options.text(v, options) : options.text;
+        text = text || `${v}`;
+        this.chart.ctx.fillStyle = color;
+        this.chart.ctx.textBaseline = 'middle';
 
-      // ToDo: Multiline text on canvas: https://www.tutorialspoint.com/HTML5-canvas-ctx-fillText-won-t-do-line-breaks
+        if (!Array.isArray(text)) {
+          text = [text];
+        }
 
-      // only display the text if it fits
-      if (textWidth < 2 * this.innerRadius * 0.8) {
-        this.chart.ctx.fillText(text, textX, 0);
-      }
+        let textWidths = [];
+        text.forEach((t, i) => {
+          if (Array.isArray(fontSize)) {
+            this.chart.ctx.font = `${fontSize[i]} ${fontFamily}`;
+          } else {
+            this.chart.ctx.font = `${fontSize} ${fontFamily}`;
+          }
+          const textMeasure = this.chart.ctx.measureText(t);
+          textWidths.push(textMeasure.width);
+        });
+
+        const totalWidth = textWidths.reduce((a, b) => a + b, 0);
+        let currentX = -Math.round(totalWidth / 2);
+        text.forEach((t, i) => {
+          this.chart.ctx.font = `${fontSize[i]} ${fontFamily}`;
+          this.chart.ctx.fillText(t, currentX, -yOffset);
+          currentX += textWidths[i];
+        });
+      });
     },
 
     drawScale(options) {
@@ -226,29 +263,34 @@ export default Chart => {
       try {
         ctx.translate(this.centerX, this.centerY);
 
-        let fontSize = options.fontSize || `${(this.innerRadius / 200).toFixed(2)}em`; // ToDo: Fontsize as a function of inner or outer radius in config.
+        const opts = this.chart.options.radialScale;
+
+        let fontSize = opts.fontSize || `${(this.innerRadius / 150).toFixed(2)}em`;
         if (typeof fontSize === 'number') {
           fontSize = `${fontSize}px`;
+        } else if (typeof fontSize === 'function') {
+          fontSize = `${fontSize(this.outerRadius, this.innerRadius)}px`;
         }
-        //console.log(fontSize);
 
-        const fontFamily = options.fontFamily || Chart.defaults.global.defaultFontFamily;
-        const color = options.fontColor || Chart.defaults.global.defaultFontColor;
+        const fontFamily = opts.fontFamily || Chart.defaults.global.defaultFontFamily;
+        const color = opts.fontColor || Chart.defaults.global.defaultFontColor;
         this.chart.ctx.font = `${fontSize} ${fontFamily}`;
         this.chart.ctx.fillStyle = color;
         this.chart.ctx.textBaseline = 'middle';
         this.chart.ctx.textAlign = "center";
 
-        // ToDo: Cache rotation values (rotate unit vector and multiply)
-        const opts = this.chart.options.radialScale;
-        const spacing = opts.spacing;
+        let spacing = opts.spacing;
+        if (typeof spacing === 'function') {
+          spacing = spacing(this.outerRadius, this.innerRadius);
+        }
+
         const domain = this.getDomain();
         for (let tick of opts.ticks) {
           const value = domain[0] + (domain[1] - domain[0]) * tick;
           const text = opts.label(value);
           const textSize = this.chart.ctx.measureText(text);
           const angleRad = this.chart.options.rotation + Math.PI * tick;
-          const correction = this.rotateVector(textSize.width / 2, 0, angleRad);          
+          const correction = this.rotateVector(textSize.width / 2, 0, angleRad);
           const { x, y } = this.rotateVector(this.outerRadius + spacing + textSize.width / 2, 0, angleRad);
           this.chart.ctx.fillText(text, x, y - correction.y);
         }

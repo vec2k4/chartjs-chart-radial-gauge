@@ -26,34 +26,14 @@
 
     var ctx = document.getElementById('chart-area').getContext('2d');
 
-    //var labelFunc = new Function('v', 'o', '' +
-    //  '     var val = v[0];' +
-    //  '     var unit = "W";' +
-    //  '     if (val > 1000) {' +
-    //  '       val = (val / 1000).toFixed(2);' +
-    //  '       unit = "kW";' +
-    //  '     }' +
-    //  '     return val + " " + unit;');
-
-    var labelFunc = eval('(' +
-      'function (v, o) {' +
-      '  var val = v[0];' +
-      '  var unit = "W";' +
-      '  if (val > 1000) {' +
-      '    val = (val / 1000).toFixed(2).replace(".", ",");' +
-      '    unit = "kW";' +
-      '  }' +
-      '  return val + " " + unit;' +
-      '})');
-
     var config = {
       type: 'radialGauge',
       data: {
-        labels: ['M1', 'M2', 'M3'],
+        labels: ['M1', 'M2'],
         datasets: [
           {
-            data: [900, 500, 300],
-            backgroundColor: ['#00ff00', '#ff0000', '#0000ff'],
+            data: [900, 500],
+            backgroundColor: ['#00ff00', '#ff0000'],
             borderWidth: 0,
             label: 'Score'
           }
@@ -67,26 +47,65 @@
           text: 'Radial gauge chart'
         },
         centerPercentage: 80,
-        padding: 35,
+        padding: 45,
         arcPadding: function (index, outerRadius, innerRadius) {
           return (outerRadius - innerRadius) * index / 10
         },
 
         centerArea: {
-          //fontSize: '1em',
-          text: labelFunc
+          yOffset: function (innerRadius, index) {
+            if (index == 0) {
+              index = 1;
+            } else if (index == 1) {
+              index = 0;
+            }
+
+            const fs = config.options.centerArea.fontSize;
+            let offset = 0;
+            for (let i = 0; i < index; i++) {
+              offset += innerRadius / 12 + fs(innerRadius, i)[0];
+            }
+            return fs(innerRadius, 0)[0]/2 + offset;
+          },
+          fontSize: function (innerRadius, index) {
+            if (index == 0) {
+              index = 1;
+            } else if (index == 1) {
+              index = 0;
+            }
+
+            let val = innerRadius / 4.5;
+            val = val - val * index / 3;
+
+            return [val, val * 0.66];
+          },
+          text: function (v, o) {
+            if (v > 1000) {
+              return [(v / 1000).toFixed(2).replace(".", ","), " kW"];
+            }
+            return [v, " W"];
+          },
+          fontColor: 'dataset'
         },
         roundedCorners: false,
         domain: [0, 10000],
         rotation: Math.PI, // Standard
         circumference: Math.PI, // Standard
         radialScale: {
-          //ticks: [0, 0.25, 0.5, 0.75, 1],
-          ticks: [0, 0.2, 0.4, 0.6, 0.8, 1],
+          ticks: [0, 0.25, 0.5, 0.75, 1],
+          //ticks: [0, 0.2, 0.4, 0.6, 0.8, 1],
           label: function (v) {
             return v / 1000 + ' kW';
           },
-          spacing: 20
+          fontSize: function (outerRadius, innerRadius) {
+            var size = outerRadius / 10;
+            size = Math.min(Math.max(size, 11), 16);
+            return size;
+          },
+          spacing: function (outerRadius, innerRadius) {
+            var size = config.options.radialScale.fontSize(innerRadius, outerRadius);
+            return 20 * size / 16;
+          }
         }
       }
     };
@@ -103,7 +122,9 @@
         //});
 
         var val = randomScalingFactor();
-        dataset.data = [val + 100, val - 50, val];
+        dataset.data = [val + 100, val];
+
+        dataset.data = [randomScalingFactor(), randomScalingFactor()];
       });
 
       window.myRadialGauge.update();
