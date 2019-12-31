@@ -261,6 +261,7 @@ export default Chart => {
     },
 
     drawScale(options) {
+      const ctx = this.chart.ctx;
       ctx.save();
 
       try {
@@ -353,7 +354,6 @@ export default Chart => {
 
     updateElement(arc, index, reset, centerX, centerY) {
       const chart = this.chart;
-      const chartArea = chart.chartArea;
       const opts = chart.options;
       const animationOpts = opts.animation;
       const dataset = this.getDataset();
@@ -361,7 +361,11 @@ export default Chart => {
       const startAngle = opts.rotation;
       const value = reset && animationOpts.animateScale ? 0 : dataset.data[index]; 
       const arcAngle = reset && animationOpts.animateRotate ? 0 : this.calculateArcAngle(value);
-      const endAngle = startAngle + arcAngle;
+      let endAngle = startAngle + arcAngle;
+
+      if (endAngle > opts.rotation + opts.circumference) {
+        endAngle = opts.rotation + opts.circumference;
+      }
 
       const innerRadius = this.innerRadius;
       const outerRadius = this.outerRadius;
