@@ -13,10 +13,13 @@
       -ms-user-select: none;
     }
   </style>
+  <script type="text/javascript" src=https://code.jquery.com/jquery-3.4.1.min.js></script>
 </head>
 
 <body>
-  <div style="position: relative; height: 250px; width: 100%;"><canvas id="chart-area"></canvas></div>
+  <div id="chart-container" style="position: relative; height: 250px; width: 100%;">
+    <canvas id="chart-area"></canvas>
+  </div>
   <button id="randomizeData">Randomize Data</button>
   <script>
     var randomScalingFactor = function () {
@@ -42,6 +45,9 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+
+        containerId: 'chart-container',
+
         legend: {},
         title: {
           display: false,
@@ -120,7 +126,21 @@
             return 20 * size / 16;
           }
         }
-      }
+      },
+      plugins: [
+        {
+          resize: function (chart, options) {
+            //console.log("Resize", chart.width, chart.height);
+          },
+          afterLayout: function (chart, options) {
+            console.log(options);
+            console.log("AfterLayout", chart.width, chart.height, chart.canvas.id, options.containerId);
+            var el = $('#' + options.containerId);
+            console.log("-> ", el.width(), el.height());
+            el.height(el.width() / 1.75);
+          }
+        }
+      ]
     };
 
     window.onload = function () {
