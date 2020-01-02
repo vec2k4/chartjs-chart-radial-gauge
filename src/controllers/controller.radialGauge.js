@@ -42,6 +42,8 @@ Chart.defaults._set('radialGauge', {
   centerArea: {
     // whether to display the center text value
     displayText: true,
+    // whether the text changes should be animated
+    animateText: true,
     // font for the center text
     fontFamily: null,
     // color of the center text, special value 'fontColor' for dataset values
@@ -151,7 +153,8 @@ export default Chart => {
       const ctx = this.chart.ctx;
       const drawInfo = {
         ctx,
-        value: this.getMeta().data.map(val => Math.ceil(val._view.value)),
+        displayValue: this.getMeta().data.map(val => Math.ceil(val._view.value)),
+        value: this.getMeta().data.map(val => Math.ceil(val._model.value)),
         radius: this.innerRadius,
         options: this.chart.options.centerArea
       };
@@ -205,8 +208,9 @@ export default Chart => {
       );
     },
 
-    drawCenterText({ options, value }) {
-      value.forEach((v, i) => {
+    drawCenterText({ options, displayValue, value }) {
+      const val = options.animateText ? displayValue : value;
+      val.forEach((v, i) => {
         let fontSize = options.fontSize || `${(this.innerRadius / 100).toFixed(2)}em`;
         if (typeof fontSize === 'number') {
           fontSize = `${fontSize}px`;
