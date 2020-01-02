@@ -29,8 +29,18 @@ Chart.defaults._set('radialGauge', {
   // Padding around the chart (y-axis)
   paddingY: 0,
 
-  // the color of the radial gauge's track
-  trackColor: 'rgb(204, 221, 238)',
+  // track options
+  track: {
+    // the color of the radial gauge's track
+    color: 'rgb(204, 221, 238)',
+    // track's border options
+    border: {
+      // track's border color
+      color: 'rgb(204, 221, 238)',
+      // track's border width
+      width: 1
+    }
+  },
 
   // whether arc for the gauge should have rounded corners
   roundedCorners: true,
@@ -134,15 +144,15 @@ export default Chart => {
 
       new Chart.elements.RoundedArc({
         _view: {
-          backgroundColor: this.chart.options.trackColor,
-          borderColor: this.chart.options.trackColor,
+          backgroundColor: this.chart.options.track.color,
+          borderColor: this.chart.options.track.border.color, //this.chart.options.trackColor,
           startAngle: opts.rotation,
           endAngle: opts.rotation + opts.circumference,
           x: this.centerX,
           y: this.centerY,
           innerRadius: this.innerRadius,
           outerRadius: this.outerRadius,
-          borderWidth: this.borderWidth,
+          borderWidth: this.chart.options.track.border.width,
           roundedCorners: opts.roundedCorners
         },
         _chart: this.chart
